@@ -1,7 +1,7 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
-const path = require('path'); // We need this to find files
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -23,14 +23,14 @@ const AUTOMATED_COST_PER_INVOICE = 0.20;
 const ERROR_RATE_AUTO = 0.001; // 0.1%
 const MIN_ROI_BOOST_FACTOR = 1.1;
 
-// --- Calculation Logic (no changes here) ---
+// --- Calculation Logic ---
 const calculateRoi = (data) => {
     const d = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, parseFloat(v) || 0]));
     const labor_cost_manual = (d.num_ap_staff * d.hourly_wage * d.avg_hours_per_invoice * d.monthly_invoice_volume);
     const auto_cost = d.monthly_invoice_volume * AUTOMATED_COST_PER_INVOICE;
     const error_savings = ((d.error_rate_manual / 100) - ERROR_RATE_AUTO) * d.monthly_invoice_volume * d.error_cost;
     let monthly_savings = (labor_cost_manual + error_savings) - auto_cost;
-    monthly_savings *= MIN_ROI_BOOST_FACTOR;
+    monthly_savings *= MIN_ROI_BOOSt_FACTOR;
 
     if (monthly_savings <= 0) return { monthly_savings: Math.round(monthly_savings), payback_months: Infinity, net_savings: -d.one_time_implementation_cost, roi_percentage: -100 };
     
@@ -42,17 +42,21 @@ const calculateRoi = (data) => {
     return { monthly_savings: Math.round(monthly_savings), payback_months: Math.round(payback_months * 10) / 10, net_savings: Math.round(net_savings), roi_percentage: Math.round(roi_percentage) };
 };
 
-// --- API Routes ---
-// This is the new part that serves your homepage
+// --- THIS IS THE FIX ---
+// Correctly locate the 'public' folder in the Vercel environment
+const publicPath = path.resolve(process.cwd(), 'public');
+
+// Serve the main index.html file for the homepage
 app.get('/', (req, res) => {
-    // This finds the index.html file in your 'public' folder
-    res.sendFile(path.join(__dirname, '../public/index.html'));
+    res.sendFile(path.join(publicPath, 'index.html'));
 });
 
-// Serve other static files like CSS or images if you had them
-app.use(express.static(path.join(__dirname, '../public')));
+// Serve other static files (like images or CSS if you had them)
+app.use(express.static(publicPath));
+// --- END OF THE FIX ---
 
 
+// --- API Routes ---
 app.post('/api/simulate', (req, res) => res.json(calculateRoi(req.body)));
 
 app.get('/api/scenarios', async (req, res) => {
@@ -80,5 +84,5 @@ app.post('/api/scenarios', async (req, res) => {
     } finally { if (connection) connection.end(); }
 });
 
-// Vercel needs this export
+// Vercel needs this export. The app.listen() is removed as Vercel handles it.
 module.exports = app;
