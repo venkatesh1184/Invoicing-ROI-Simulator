@@ -1,13 +1,14 @@
-
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
+const path = require('path'); // We need this to find files
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// --- Database Connection ---
 const dbConfig = {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -17,10 +18,12 @@ const dbConfig = {
     ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true }
 };
 
+// --- Internal Constants ---
 const AUTOMATED_COST_PER_INVOICE = 0.20;
 const ERROR_RATE_AUTO = 0.001; // 0.1%
 const MIN_ROI_BOOST_FACTOR = 1.1;
 
+// --- Calculation Logic (no changes here) ---
 const calculateRoi = (data) => {
     const d = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, parseFloat(v) || 0]));
     const labor_cost_manual = (d.num_ap_staff * d.hourly_wage * d.avg_hours_per_invoice * d.monthly_invoice_volume);
@@ -39,7 +42,17 @@ const calculateRoi = (data) => {
     return { monthly_savings: Math.round(monthly_savings), payback_months: Math.round(payback_months * 10) / 10, net_savings: Math.round(net_savings), roi_percentage: Math.round(roi_percentage) };
 };
 
-app.get('/', (req, res) => res.sendFile('index.html', { root: 'public' }));
+// --- API Routes ---
+// This is the new part that serves your homepage
+app.get('/', (req, res) => {
+    // This finds the index.html file in your 'public' folder
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Serve other static files like CSS or images if you had them
+app.use(express.static(path.join(__dirname, '../public')));
+
+
 app.post('/api/simulate', (req, res) => res.json(calculateRoi(req.body)));
 
 app.get('/api/scenarios', async (req, res) => {
@@ -67,8 +80,5 @@ app.post('/api/scenarios', async (req, res) => {
     } finally { if (connection) connection.end(); }
 });
 
-app.use(express.static('public'));
-
-app.listen(3000, () => console.log('Server ready on port 3000.'));
-
+// Vercel needs this export
 module.exports = app;
